@@ -1,0 +1,411 @@
+---
+title: "Alumni Donation Case Study"
+author: "Ankush Morey"
+date: "4/7/2021"
+output: html_document
+---
+##  {.tabset}
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE,warning = FALSE, message = FALSE)
+```
+### Introduction
+#### Overview
+Alumni donations are an important source of revenue for colleges and universities. If administrators could determine the factors that influence increases in the percentage of alumni who make a donation, they might be able to implement policies that could lead to increased revenues. Research shows that students who are more satisfied with their contact with teachers are more likely to graduate. As a result, one might suspect that smaller class sizes and lower student-faculty ratios might lead to a higher percentage of satisfied graduates, which in turn might lead to increases in the percentage of alumni who make a donation. The dataset contains data for 48 national universities (America’s Best Colleges, Year 2000 Edition). 
+
+&nbsp;
+&nbsp;
+&nbsp;
+&nbsp;
+
+#### Problem Statement: 
+Determine key factors that influence Alumni donation rate.
+
+&nbsp;
+&nbsp;
+&nbsp;
+&nbsp;
+
+#### Data Description
+Data source - https://bgreenwell.github.io/uc-bana7052/data/alumni.csv
+
+- % of Classes Under 20 - the percentage of classes offered with fewer than 20  students.(Continuous Numeric)
+
+- Student/Faculty Ratio - the number of students enrolled divided by the total  number of faculty. (Continuous Numeric)
+
+- Alumni Giving Rate - the percentage of alumni that made a donation to the university.(Continuous Numeric)
+
+- Private - 1 implies Private university and 0 implies Public university (Categorical Binary)
+
+&nbsp;
+&nbsp;
+&nbsp;
+&nbsp;
+
+#### Method/Approach:
+This is a linear regression problem, with target variable being continuous numeric. Our objective is to determine the factors that impact our target the most. Thus we are interested in finding statistically significant Beta coefficients.
+
+- We checked missing values and outliers
+
+- Performed  univariate and bivariate analysis 
+
+- Correlation plots for relationships between independent and dependent variables. 
+
+- Tried multiple input combinations for linear regression to arrive at best possible model.
+
+### EDA
+
+&nbsp;
+&nbsp;
+
+```{r 1}
+knitr::opts_chunk$set(echo = FALSE)
+library(dplyr)
+library(data.table)
+library(ggplot2)
+library(gridExtra)
+library(GGally)
+library(corrplot)
+library(caret)
+library(ggfortify)
+library(leaps)
+
+df_alumni <- read.csv('https://bgreenwell.github.io/uc-bana7052/data/alumni.csv')
+
+#Exploratory Data Analysis
+df_alumni$ï..school <- NULL
+
+#Check for missing values
+summary(df_alumni)
+#No missing values
+
+#outlier Detection
+#Boxplots for outliers
+par(mfrow=c(1,3))
+boxplot(df_alumni$student_faculty_ratio,col = 'light green',xlab='Student Faculty ratio')
+boxplot(df_alumni$percent_of_classes_under_20,col = 'light green',xlab='Percent class under 20')
+boxplot(df_alumni$alumni_giving_rate,col = 'light green',xlab='Alumni giving rate')
+
+```
+
+We found that the data for percent_of_classes_under_20 is distributed with mean of 55.73% and standard deviation of 13.19% with a max value of 77% and min of 29%.The median of data stands at  59.5%. There are no missing values in the dataset. We do not see any outliers.
+We found that the data for student_faculty_ratio is distributed with mean of 11.54 and standard deviation of 4.85 with a max value of 23 and min of 3.The median of data stands at  10.5. There are no missing values in the dataset. . We do not see any outliers.
+
+We found that the data for alumni_giving_rate is distributed with mean of 29.27% and standard deviation of 4.85% with a max value of 67% and min of 7%.The median of data stands at  29%. There are no missing values in the dataset. . We don’t see any outliers.
+
+We found that the data for private is distributed with mean of 0.6875 and standard deviation of 0.47 with a max value of 1 and min of 0.The median of data stands at  1. There are no missing values in the dataset. This is binary categorical variable.
+
+&nbsp;
+&nbsp;
+&nbsp;
+
+#### Histograms and Bar plot
+```{r 2}
+knitr::opts_chunk$set(echo = FALSE)
+hist_1 <- ggplot(df_alumni, aes(x=alumni_giving_rate)) +
+  geom_histogram(fill = "green", alpha=0.5, position="identity") +
+  ggtitle("Alumni Giving Rate") +
+  xlab("Alumni Giving Rate") + ylab("Frequency") +
+  theme(plot.title = element_text(hjust = 0.5))
+
+
+hist_2 <- ggplot(df_alumni, aes(x=student_faculty_ratio)) +
+  geom_histogram(fill = "green", alpha=0.5, position="identity") +
+  ggtitle("Student Faculty Ratio") +
+  xlab("Student Faculty Ratio") + ylab("Frequency") +
+  theme(plot.title = element_text(hjust = 0.5))
+
+hist_3 <- ggplot(df_alumni, aes(x=percent_of_classes_under_20)) +
+  geom_histogram(fill = "green", alpha=0.5, position="identity") +
+  ggtitle("Percent of Classes Under 20") +
+  xlab("Percent of Classes Under 20") + ylab("Frequency") +
+  theme(plot.title = element_text(hjust = 0.5))
+
+hist_4 <- ggplot(df_alumni, aes(x=private)) +
+  geom_histogram(fill = "green", alpha=0.5, position="identity") +
+  ggtitle("Count of Private Vs Public") +
+  xlab("0=Public        1=Private") + ylab("Frequency") +
+  theme(plot.title = element_text(hjust = 0.5))
+
+grid.arrange(hist_1, hist_2, ncol = 1, nrow = 2)
+grid.arrange(hist_3,hist_4, ncol = 1, nrow = 2)
+
+
+
+```
+
+
+None of the variables i.e. Alumni giving rate, Student faculty ratio and Percentage class below 20 is normally distributed. 
+Also, count of public universities = 15 and private universities = 33. 
+
+&nbsp;
+&nbsp;
+&nbsp;
+
+#### Scatter Plots
+```{r 3}
+knitr::opts_chunk$set(echo = FALSE)
+scat1 <- ggplot(df_alumni, aes(x = student_faculty_ratio, y = alumni_giving_rate)) + 
+  geom_point() + geom_smooth(method = "lm", se = FALSE, color = "red") +
+  ggtitle("Student Faculty vs Alumni Giving") +
+  xlab("Student Faculty ratio") + ylab("Alumni Giving rate") +
+  theme(plot.title = element_text(hjust = 0.5))
+#scat1
+
+scat2 <- ggplot(df_alumni, aes(x = percent_of_classes_under_20, y = alumni_giving_rate)) + 
+  geom_point() + geom_smooth(method = "lm", se = FALSE, color = "red") + 
+  ggtitle("Percent Class 20 vs Alumni Giving") +
+  xlab("Percent of Classes Under 20") + ylab("Alumni Giving rate") +
+  theme(plot.title = element_text(hjust = 0.5))
+#scat2
+grid.arrange(scat1,scat2, nrow = 1,ncol = 2)
+
+```
+
+
+1)	Alumni giving rate is highly correlated with Student-faculty ratio and class under 20.
+2) Student faculty ratio has negative correlation with alumni giving rate.
+
+&nbsp;
+&nbsp;
+&nbsp;
+
+
+#### Correlation Plots and Heat map
+Lets calculate the correlation coefficients:
+```{r 4}
+knitr::opts_chunk$set(echo = FALSE)
+ggpairs(df_alumni, columns = 1:4,ggplot2::aes(colour=as.factor(private)))
+
+```
+
+
+1)	Alumni giving rate is highly correlated with Student-faculty ratio and class under 20.
+Student faculty ratio has  a negative correlation coefficient of -0.742 with alumni giving rate. Percentage of classes under 20 has a positive correlation of 0.646 with alumni giving rate.
+
+2)	All predictor variables have strong correlation with Response variable i.e Alumni giving Rate.  
+
+
+
+### Model Building
+Since we have very few data points (only 48), dividing the dataset further into train and test would affect the model training/learning. Hence we have considered whole dataset for training. And later if we have access to new data set we can test our models. But for this case study we would rely on metrics like Adjusted R squared, residual diagnostics for selecting a suitable model.
+
+
+#### Model 1
+Building 1st model with all input parameters.
+As all predictor variables have strong correlation matrix with Response variable, we have chosen the following predictor variables :
+ Y  = response variable= Alumni giving rate
+		 X1= predictor variable= class under twenty
+		 X2= predictor variable= student faculty ratio
+		 X3= predictor variable= Private
+
+```{r 5}
+knitr::opts_chunk$set(echo = FALSE)
+smp_size <- floor(0.75 * nrow(df_alumni))
+
+## set the seed to make your partition reproducible
+# Train the model
+mod1 <- lm(alumni_giving_rate ~., data = df_alumni)
+summary(mod1)
+
+```
+
+Based on the linear regression fitted we find that Adjusted R-squared:  0.5457 and Residual standard error is 9.06. The summary statistics of the model 1 shows that mean estimates of  X1 and X3 have a p-value greater than 0.05 and therefore we cannot reject the null hypothesis of coefficients of X1 and X3 being equal to zero. P-value for estimate of X2 is less than 0.05 and therefore we can reject null hypothesis of coefficient of X2 =0. The fitted model is 
+Y= 36.78 + 0.77 * X1 - 1.40 * X2 + 6.29 * X3
+
+&nbsp;
+&nbsp;
+&nbsp;
+
+#### Best parameter combination using regsubsets
+Post this result we tried to verify the variables with help of regsubsets to get the best possible number of variables to make the model.
+```{r 6}
+knitr::opts_chunk$set(echo = FALSE)
+a1 <- regsubsets(alumni_giving_rate ~ ., data = df_alumni, 
+                 nbest = 6, nvmax = 4)
+plot(a1, scale = "bic")
+res1 <- data.frame(
+  "nvar" = apply(summary(a1)$which, 1, FUN = function(x) sum(x) - 1),
+  "bic" = summary(a1)$bic,
+  "adjr2" = summary(a1)$adjr2
+)
+# Plot results
+p1 <- ggplot(res1, aes(x = nvar, y = bic)) +
+  geom_point(alpha = 0.5, size = 2, color = "darkred") +
+  stat_summary(fun = min, geom = "line", alpha = 0.5, linetype = "dashed") +
+  theme_light() +
+  labs(x = "Number of predictors", y = "BIC")
+p2 <- ggplot(res1, aes(x = nvar, y = adjr2)) +
+  geom_point(alpha = 0.5, size = 2, color = "darkgreen") +
+  stat_summary(fun = max, geom = "line", alpha = 0.5, linetype = "dashed") +
+  theme_light() +
+  labs(x = "Number of predictors", y = "Adjusted R-squared")
+gridExtra::grid.arrange(p1, p2, nrow = 2)
+
+```
+
+
+Based on the BIC values we conclude that  the best model can be made with the help of intercept and student faculty ratio.
+
+&nbsp;
+&nbsp;
+&nbsp;
+
+#### Model 2
+Based on the inputs provided by Model 1 and regsubset analysis , we try to fit a modes as mentioned below :
+Y  = response variable= Alumni giving rate
+X2 = predictor variable= student faculty ratio
+
+```{r 61}
+knitr::opts_chunk$set(echo = FALSE)
+mod2 <- lm(alumni_giving_rate ~student_faculty_ratio, data = df_alumni)
+summary(mod2)
+
+```
+
+From above linear regression we find that Adjusted R-squared:  0.5414 and Residual standard error is 9.103. The summary statistics of the model 2 shows that mean estimate of  X2 has a P-value for less than 0.05 and therefore we can reject null hypothesis of coefficient of X2  is 0.The fitted model is 
+	Y= 53.01 - 2.06 * X2
+
+&nbsp;
+&nbsp;
+&nbsp;
+
+#### Model 3
+We tried Box Cox transformation based on which we transform the response variable according to the value of lambda:
+
+```{r 7}
+knitr::opts_chunk$set(echo = FALSE)
+bc <- MASS::boxcox(alumni_giving_rate~student_faculty_ratio, data=df_alumni)
+lambda <- bc$x[which.max(bc$y)]
+
+# boxcox transformed model
+df_alumni$alumni_giving_rate2 <- (df_alumni$alumni_giving_rate ^ lambda - 1) / lambda
+mod_bc <- lm(alumni_giving_rate2 ~ student_faculty_ratio, data = df_alumni)
+summary(mod_bc)
+```
+Based on the transformation done we got λ= 0.424  and the  linear regression fitted we find that Adjusted R-squared:  0.5844 and Residual standard error is 1.305. The summary statistics of the model 3 shows that mean estimate of  X2 has a P-value for less than 0.05 and therefore we can reject null hypothesis of coefficient of X2  is 0.The fitted model is 
+Y^(λ) = 10.95 - 0.32 * X2
+
+&nbsp;
+&nbsp;
+&nbsp;
+
+#### Model 4
+Lets check if there are interactions within the the independent variables that would affect our target variable
+
+```{r 8, echo=FALSE}
+#Interaction
+###### What about interactions?
+#home-brewed function for counting number of models
+df_alumni$alumni_giving_rate2<-NULL
+numSubsets <- function(x, max.int = 1) {
+  if (max.int > x) {
+    stop("`max.int` cannot be larger than ", 
+         x, ".", call. = FALSE)
+  }
+  x <- as.integer(x)
+  max.int <- as.integer(max.int)
+  res <- 0
+  for (i in seq_len(max.int)) {
+    res <- res + choose(n = x, k = i)
+  }
+  2 ^ res
+}
+
+# How many possible subsets if we allow for 
+# interactions?
+x <- c(numSubsets(4, max.int = 1),
+       numSubsets(4, max.int = 2),
+       numSubsets(4, max.int = 3),
+       numSubsets(4, max.int = 4))
+scales::comma(x)
+
+# All subsets regression (with two-way interactions)
+a2 <- regsubsets(alumni_giving_rate ~ .^2, data = df_alumni, 
+                 nbest = 40, nvmax = 1000)
+
+
+# Gather results
+res2 <- data.frame(
+  "nvar" = apply(summary(a2)$which, 1, FUN = function(x) sum(x) - 1),
+  "bic" = summary(a2)$bic,
+  "adjr2" = summary(a2)$adjr2
+)
+
+# Plot results
+p3 <- ggplot(res2, aes(x = nvar, y = bic)) +
+  geom_point(alpha = 0.5, size = 2, color = "darkred") +
+  stat_summary(fun = min, geom = "line", alpha = 0.5, linetype = "dashed") +
+  scale_x_continuous(breaks = 1:10) +
+  theme_light() +
+  labs(x = "Number of predictors", y = "BIC")
+p4 <- ggplot(res2, aes(x = nvar, y = adjr2)) +
+  geom_point(alpha = 0.5, size = 2, color = "darkgreen") +
+  stat_summary(fun = max, geom = "line", alpha = 0.5, linetype = "dashed") +
+  scale_x_continuous(breaks = 1:10) +
+  theme_light() +
+  labs(x = "Number of predictors", y = "Adjusted R-squared")
+gridExtra::grid.arrange(p3, p4, nrow = 2)
+
+
+# Summarize best model
+id <- which.min(summary(a2)$bic)
+trms <- names(which(summary(a2)$which[id, ])[-1L])
+form <- as.formula(paste("alumni_giving_rate ~", paste(trms, collapse = "+")))
+round(summary(best2 <- lm(form, data = df_alumni))$coefficients, digits = 3)
+summary(best2 <- lm(form, data = df_alumni))
+
+```
+We see that there is statistically significant interaction between private and student faculty ratio. With this model we get Adjusted R-squared of 0.57 with residual error 8.8. But, the improvement in model is not that significant as compared to Box cox. moreover, interactions increase complexity of model. We would prefer a model which is simple and provides optimum prediction. Hence we will carry forward Model 2(single predictor = Student faculty ratio) and Model 3 (Box Cox transformed) for testing model assumptions.
+
+
+
+### Assumptions
+#### Residual Diagnostics for Model 2 (Single predictor - Student faculty ratio)
+```{r 62, echo = FALSE}
+
+autoplot(mod2)
+```
+
+&nbsp;
+&nbsp;
+&nbsp;
+&nbsp;
+&nbsp;
+&nbsp;
+
+#### Residual Diagnostics for Model 3(Box Cox transformed)
+```{r 63, echo = FALSE}
+
+autoplot(mod_bc)
+```
+
+
+Residual Vs Fitted plot can be used to test whether the model is compliant with the assumptions that are integral to a linear regression model. The residual vs fitted plot obtained for the model 1 (with single variable Student Faculty Ratio), indicates presence of a small degree of Heteroscedasticity (non-constant variance), and the parabolic curve fitted to the residuals is indicative of a small degree of non-linearity between the independent and dependent variables. TO mitigate this effect, we can use the box cox transformation. The residuals are normally distributed, evident in the Normal QQ plot. The scale location plot is further affirmation that the residuals have non-constant variance across the range of predictors. 
+The second set of plots are obtained for the model after box cox transformation of the data. WE can see significant improvements in the Residual vs Fitted plot, increased Homoscedasticity (Scale Location plot). 
+
+
+
+### Conclusion
+
+#### Model Selection
+As per Occam's Razor principle on problem-solving "entities should not be multiplied without necessity", or more simply, the simplest explanation is usually the right one. 
+Here as well we try to find the simplest best possible model. Including multiple interaction terms might work well on training data but are highly likely to overfit, resulting in poor performance on new data.
+
+Based on the Model development process followed model 2 and model 3 looks to be better . 
+1)	When we compare these two models, we find that Adjusted R-square for Model 3 is 0.5844 compared to 0.5414 of model 2, 
+2)	We find that Residual Standard error for model 3 is less than model 2.
+3)	Plot of Residual with fitted value of Model 3 is closer to constant variance compared to Model 2.
+4)	We also find that Model 3 Q-Q plot to be closer to normal distribution compared to Model-2
+In Light of the above we would choose Model 3 as for predicting alumni giving rate.
+
+
+Y^(0.424) = 10.95 - 0.32 * X2
+
+
+&nbsp;
+&nbsp;
+&nbsp;
+
+#### Insights
+
+Hence to increase the Alumni donations universities should concentrate on improving the student to faculty ratio. This makes logical sense as well, improving student faculty ratio implies higher personalized instructions, more one-to-one sessions thus improving student engagement and experience as a whole. Such students are likely to have a deep sense of belonging to the university and same could reflect in Alumni donations. 
